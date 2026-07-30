@@ -64,7 +64,7 @@ app.post('/render', async (req, res) => {
     // Bundle Remotion project
     console.log('[render] Bundling...');
     const bundleLocation = await bundle({
-      entryPoint: path.resolve(__dirname, '../remotion/index.tsx'),
+      entryPoint: path.resolve(__dirname, 'remotion/index.tsx'),
     });
     console.log(`[render] Bundle completed in ${Date.now() - startTime}ms`);
 
