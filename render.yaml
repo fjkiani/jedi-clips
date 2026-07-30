@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: jediclip
+    runtime: node
+    repo: https://github.com/fjkiani/jedi-clips
+    branch: main
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: "20.20.2"
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_SIGN_IN_URL
+        value: /sign-in
+      - key: NEXT_PUBLIC_CLERK_SIGN_UP_URL
+        value: /sign-up
+      - key: NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL
+        value: /dashboard
+      - key: NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
+        value: /dashboard
+      - key: CF_ACCOUNT_ID
+        value: "8b62be35345ae5b4251f6cb624d34f22"
+      - key: CF_R2_ACCESS_KEY_ID
+        value: "88b6878305b4d583cbd842dac607afb2"
+      - key: CF_R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: CF_R2_BUCKET_NAME
+        value: "tessera-embeddings"
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_GEMINI_API_KEY
+        sync: false
+      - key: AYRSHARE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: INNGEST_EVENT_KEY
+        sync: false
+      - key: INNGEST_SIGNING_KEY
+        sync: false
+      - key: INNGEST_DEV
+        value: "0"
