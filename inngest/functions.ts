@@ -202,13 +202,14 @@ export const schedulePostCron = inngest.createFunction(
 );
 
 /**
- * Render Video via Remotion Lambda
+ * Render Video via @remotion/renderer (server-side, no AWS Lambda)
  * Triggered when user clicks "Download" on a highlight.
+ * Renders the composition and uploads the result to Cloudflare R2.
  */
 export const renderVideo = inngest.createFunction(
   {
     id: 'render-video',
-    name: 'Render Video via Remotion Lambda',
+    name: 'Render Video via Remotion Renderer',
     retries: 1,
     timeouts: {
       finish: '15m',
@@ -237,12 +238,15 @@ export const renderVideo = inngest.createFunction(
         .where(eq(highlights.id, highlightId));
     });
 
-    // Step 3: Trigger Remotion Lambda render
-    const renderResult = await step.run('trigger-render', async () => {
-      const { renderMediaOnLambda } = await import('@remotion/lambda/client');
+    // Step 3: Render video using @remotion/renderer
+    const renderResult = await step.run('render', async () => {
+      const { bundle } = await import('@remotion/bundler');
+      const { renderMedia, selectComposition } = await import('@remotion/renderer');
       const { REMOTION_CONFIG } = await import('@/config/remotion');
-      const { getPresignedDownloadUrl } = await import('@/lib/r2');
-      const { buildRenderKey } = await import('@/lib/r2');
+      const { getPresignedDownloadUrl, uploadToR2, buildRenderKey } = await import('@/lib/r2');
+      const path = await import('path');
+      const fs = await import('fs');
+      const os = await import('os');
 
       // Get the source video URL
       const video = await db.query.videos.findFirst({
@@ -254,11 +258,16 @@ export const renderVideo = inngest.createFunction(
 
       const sourceVideoUrl = await getPresignedDownloadUrl(video.r2Url);
 
-      const { renderId, bucketName } = await renderMediaOnLambda({
-        region: REMOTION_CONFIG.region as 'us-east-1',
-        functionName: REMOTION_CONFIG.functionName,
-        composition: REMOTION_CONFIG.compositionId,
-        serveUrl: REMOTION_CONFIG.siteUrl,
+      // Bundle the Remotion project
+      const bundleLocation = await bundle({
+        entryPoint: path.resolve(process.cwd(), 'remotion/index.tsx'),
+        // If you have a custom webpack override, add it here
+      });
+
+      // Select the composition
+      const composition = await selectComposition({
+        serveUrl: bundleLocation,
+        id: REMOTION_CONFIG.compositionId,
         inputProps: {
           videoUrl: sourceVideoUrl,
           startTime: highlightData.startTime,
@@ -266,62 +275,50 @@ export const renderVideo = inngest.createFunction(
           captions: highlightData.captionSegment || '',
           captionStyle: highlightData.captionStyleId || 'karaoke-white',
         },
-        codec: 'h264',
       });
 
-      return { renderId, bucketName };
+      // Create temp output file
+      const tmpDir = os.tmpdir();
+      const outputPath = path.join(tmpDir, `render-${highlightId}.mp4`);
+
+      // Render the video
+      await renderMedia({
+        composition,
+        serveUrl: bundleLocation,
+        codec: REMOTION_CONFIG.codec,
+        outputLocation: outputPath,
+        inputProps: {
+          videoUrl: sourceVideoUrl,
+          startTime: highlightData.startTime,
+          endTime: highlightData.endTime,
+          captions: highlightData.captionSegment || '',
+          captionStyle: highlightData.captionStyleId || 'karaoke-white',
+        },
+      });
+
+      // Upload to R2
+      const renderKey = buildRenderKey(clerkUserId, highlightId);
+      const fileBuffer = fs.readFileSync(outputPath);
+      await uploadToR2(renderKey, fileBuffer, 'video/mp4');
+
+      // Clean up temp file
+      fs.unlinkSync(outputPath);
+
+      return { renderKey };
     });
 
-    // Step 4: Poll for render completion and save result
+    // Step 4: Update highlight with render result
     await step.run('save-render', async () => {
-      const { getRenderProgress } = await import('@remotion/lambda/client');
-      const { REMOTION_CONFIG } = await import('@/config/remotion');
-
-      // Poll until complete (with timeout)
-      let attempts = 0;
-      const maxAttempts = 60; // 5 minutes at 5s intervals
-      let renderDone = false;
-      let outputUrl = '';
-
-      while (attempts < maxAttempts) {
-        const progressResult = await getRenderProgress({
-          renderId: renderResult.renderId,
-          bucketName: renderResult.bucketName,
-          functionName: REMOTION_CONFIG.functionName,
-          region: REMOTION_CONFIG.region as 'us-east-1',
-        });
-
-        if (progressResult.done) {
-          renderDone = true;
-          // The output file URL is available in the progress result
-          outputUrl = progressResult.outputFile || '';
-          break;
-        }
-
-        if (progressResult.fatalErrorEncountered) {
-          const errorMsg = progressResult.errors?.map(e => e.message).join('; ') || 'Unknown render error';
-          throw new Error(`Render failed: ${errorMsg}`);
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-        attempts++;
-      }
-
-      if (!renderDone) {
-        throw new Error('Render timed out');
-      }
-
-      // Store the S3 output URL — in production, we'd copy to R2
       await db
         .update(highlights)
         .set({
           renderStatus: 'completed',
-          renderedVideoR2Url: outputUrl,
+          renderedVideoR2Url: renderResult.renderKey,
         })
         .where(eq(highlights.id, highlightId));
     });
 
-    return { highlightId, renderId: renderResult.renderId };
+    return { highlightId, renderKey: renderResult.renderKey };
   }
 );
 

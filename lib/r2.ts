@@ -66,6 +66,25 @@ export async function getPresignedDownloadUrl(
 }
 
 /**
+ * Upload a file buffer directly to R2 (server-side).
+ * Used for uploading rendered videos after Remotion finishes.
+ */
+export async function uploadToR2(
+  key: string,
+  body: Buffer,
+  contentType: string
+): Promise<void> {
+  const client = getR2Client();
+  const command = new PutObjectCommand({
+    Bucket: process.env.CF_R2_BUCKET_NAME!,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  });
+  await client.send(command);
+}
+
+/**
  * Build the R2 object key for a user's video upload.
  * Format: videos/{clerkUserId}/{videoId}/{fileName}
  */
