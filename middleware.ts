@@ -10,6 +10,7 @@ const isPublicRoute = createRouteMatcher([
   '/api/test-pipeline',
   '/api/test-render',
   '/api/test-real-render',
+  '/api/test-gemini',
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
