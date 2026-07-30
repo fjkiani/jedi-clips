@@ -1,4 +1,5 @@
 render-worker/
+render-worker.bak/
 node_modules/
 .next/
 .git/
