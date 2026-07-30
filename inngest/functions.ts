@@ -238,15 +238,9 @@ export const renderVideo = inngest.createFunction(
         .where(eq(highlights.id, highlightId));
     });
 
-    // Step 3: Render video using @remotion/renderer
+    // Step 3: Render video via Railway render worker
     const renderResult = await step.run('render', async () => {
-      const { bundle } = await import('@remotion/bundler');
-      const { renderMedia, selectComposition } = await import('@remotion/renderer');
-      const { REMOTION_CONFIG } = await import('@/config/remotion');
-      const { getPresignedDownloadUrl, uploadToR2, buildRenderKey } = await import('@/lib/r2');
-      const path = await import('path');
-      const fs = await import('fs');
-      const os = await import('os');
+      const { getPresignedDownloadUrl, buildRenderKey } = await import('@/lib/r2');
 
       // Get the source video URL
       const video = await db.query.videos.findFirst({
@@ -257,54 +251,31 @@ export const renderVideo = inngest.createFunction(
       }
 
       const sourceVideoUrl = await getPresignedDownloadUrl(video.r2Url);
-
-      // Bundle the Remotion project
-      const bundleLocation = await bundle({
-        entryPoint: path.resolve(process.cwd(), 'remotion/index.tsx'),
-        // If you have a custom webpack override, add it here
-      });
-
-      // Select the composition
-      const composition = await selectComposition({
-        serveUrl: bundleLocation,
-        id: REMOTION_CONFIG.compositionId,
-        inputProps: {
-          videoUrl: sourceVideoUrl,
-          startTime: highlightData.startTime,
-          endTime: highlightData.endTime,
-          captions: highlightData.captionSegment || '',
-          captionStyle: highlightData.captionStyleId || 'karaoke-white',
-        },
-      });
-
-      // Create temp output file
-      const tmpDir = os.tmpdir();
-      const outputPath = path.join(tmpDir, `render-${highlightId}.mp4`);
-
-      // Render the video
-      await renderMedia({
-        composition,
-        serveUrl: bundleLocation,
-        codec: REMOTION_CONFIG.codec,
-        outputLocation: outputPath,
-        inputProps: {
-          videoUrl: sourceVideoUrl,
-          startTime: highlightData.startTime,
-          endTime: highlightData.endTime,
-          captions: highlightData.captionSegment || '',
-          captionStyle: highlightData.captionStyleId || 'karaoke-white',
-        },
-      });
-
-      // Upload to R2
       const renderKey = buildRenderKey(clerkUserId, highlightId);
-      const fileBuffer = fs.readFileSync(outputPath);
-      await uploadToR2(renderKey, fileBuffer, 'video/mp4');
 
-      // Clean up temp file
-      fs.unlinkSync(outputPath);
+      // Call Railway render worker
+      const renderWorkerUrl = process.env.RENDER_WORKER_URL || 'http://localhost:3001';
+      const response = await fetch(`${renderWorkerUrl}/render`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          highlightId,
+          videoUrl: sourceVideoUrl,
+          startTime: highlightData.startTime,
+          endTime: highlightData.endTime,
+          captions: highlightData.captionSegment || '',
+          captionStyle: highlightData.captionStyleId || 'karaoke-white',
+          renderKey,
+        }),
+      });
 
-      return { renderKey };
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Render worker failed: ${error.error || response.statusText}`);
+      }
+
+      const result = await response.json();
+      return { renderKey: result.renderKey };
     });
 
     // Step 4: Update highlight with render result
