@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import { videos } from '@/db/schema';
