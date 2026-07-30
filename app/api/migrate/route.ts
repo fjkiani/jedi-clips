@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
+import postgres from 'postgres';
 
 /**
  * One-time database migration endpoint.
@@ -8,7 +8,9 @@ import { neon } from '@neondatabase/serverless';
  */
 export async function GET() {
   try {
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = postgres(process.env.DATABASE_URL!, {
+      ssl: 'require',
+    });
 
     // Create enums
     await sql`
@@ -152,6 +154,8 @@ export async function GET() {
         ON CONFLICT (id) DO NOTHING;
       `;
     }
+
+    await sql.end();
 
     return NextResponse.json({
       success: true,

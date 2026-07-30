@@ -1,11 +1,13 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 
 if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL must be a Neon connection string');
+  throw new Error('DATABASE_URL must be a PostgreSQL connection string');
 }
 
-const sql = neon(process.env.DATABASE_URL);
+const client = postgres(process.env.DATABASE_URL, {
+  ssl: process.env.NODE_ENV === 'production' ? 'require' : false,
+});
 
-export const db = drizzle(sql, { schema });
+export const db = drizzle(client, { schema });
