@@ -154,7 +154,7 @@ export const schedulePostCron = inngest.createFunction(
 
           // Call Ayrshare API to post
           const response = await fetch(
-            `${AYRSHARE_CONFIG.baseUrl}/${AYRSHARE_CONFIG.version}/post`,
+            `${AYRSHARE_CONFIG.baseUrl}/post`,
             {
               method: 'POST',
               headers: {

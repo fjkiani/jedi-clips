@@ -8,8 +8,8 @@ export const AYRSHARE_CONFIG = {
   /** Base URL for Ayrshare API */
   baseUrl: 'https://app.ayrshare.com/api',
 
-  /** API version */
-  version: 'v1',
+  /** API version — empty string, Ayrshare doesn't use versioned paths */
+  version: '',
 
   /** API key from environment */
   get apiKey() {
