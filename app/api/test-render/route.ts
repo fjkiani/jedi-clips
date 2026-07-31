@@ -1,19 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 import { db } from '@/db';
 
-export const dynamic = 'force-dynamic';
 import { highlights, videos } from '@/db/schema';
 
-export const dynamic = 'force-dynamic';
 import { eq } from 'drizzle-orm';
 
-export const dynamic = 'force-dynamic';
 import { getPresignedDownloadUrl, uploadToR2, buildRenderKey } from '@/lib/r2';
-
-export const dynamic = 'force-dynamic';
 
 /**
  * Test endpoint to directly trigger a render without Inngest.

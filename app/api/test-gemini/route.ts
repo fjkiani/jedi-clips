@@ -1,10 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 import { selectHighlights } from '@/lib/gemini';
-
-export const dynamic = 'force-dynamic';
 
 /**
  * Test endpoint to verify Gemini API is working.

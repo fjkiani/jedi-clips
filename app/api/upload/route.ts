@@ -1,13 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 import { auth } from '@clerk/nextjs/server';
 
-export const dynamic = 'force-dynamic';
 import { uploadToR2, buildVideoKey } from '@/lib/r2';
-
-export const dynamic = 'force-dynamic';
 
 /**
  * Server-side upload proxy.
