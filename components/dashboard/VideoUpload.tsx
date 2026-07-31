@@ -49,30 +49,57 @@ export default function VideoUpload() {
         throw new Error('Failed to get upload URL');
       }
 
-      // Step 2: Upload directly to R2 via presigned URL with progress tracking
-      const xhr = new XMLHttpRequest();
+      // Step 2: Upload directly to R2 via presigned URL with progress tracking.
+      // Falls back to the server-side proxy (/api/upload) if the direct
+      // upload is blocked (e.g. bucket CORS not configured yet).
+      const uploadDirect = () =>
+        new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
 
-      await new Promise<void>((resolve, reject) => {
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            setProgress(Math.round((e.loaded / e.total) * 100));
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              setProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status === 200) {
+              resolve();
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error('Upload failed'));
+
+          xhr.open('PUT', presignedUrl);
+          xhr.setRequestHeader('Content-Type', file.type);
+          xhr.send(file);
+        });
+
+      const uploadViaServer = async () => {
+        const resp = await fetch(
+          `/api/upload?videoId=${encodeURIComponent(videoId)}&fileName=${encodeURIComponent(file.name)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': file.type },
+            body: file,
           }
-        };
+        );
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.error || `Server upload failed (${resp.status})`);
+        }
+        setProgress(100);
+      };
 
-        xhr.onload = () => {
-          if (xhr.status === 200) {
-            resolve();
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
-        };
-
-        xhr.onerror = () => reject(new Error('Upload failed'));
-
-        xhr.open('PUT', presignedUrl);
-        xhr.setRequestHeader('Content-Type', file.type);
-        xhr.send(file);
-      });
+      try {
+        await uploadDirect();
+      } catch (directErr) {
+        console.warn('[VideoUpload] Direct R2 upload failed, trying server proxy:', directErr);
+        setProgress(0);
+        await uploadViaServer();
+      }
 
       // Step 3: Confirm upload and trigger AI processing
       await createVideo(videoId, r2Key, file.name);
