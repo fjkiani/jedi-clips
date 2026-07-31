@@ -1,7 +1,16 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { db } from '@/db';
+
+export const dynamic = 'force-dynamic';
 import { users, videos, transcripts, highlights } from '@/db/schema';
+
+export const dynamic = 'force-dynamic';
 import { eq } from 'drizzle-orm';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Test endpoint to create sample data for pipeline testing.

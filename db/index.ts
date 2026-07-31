@@ -3,36 +3,41 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 
 /**
- * Database client.
+ * Database client with lazy initialization.
  *
  * Next.js evaluates route modules at build time ("Collecting page data"),
- * when DATABASE_URL is not available. We detect the build phase and
- * create a dummy client that will never actually be queried — the real
- * connection only happens at runtime when a request comes in.
+ * when DATABASE_URL is not available. We defer the postgres connection
+ * until the first actual query at runtime.
  */
 
-const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
+type Db = ReturnType<typeof drizzle<typeof schema>>;
 
-function createDb() {
+let _db: Db | undefined;
+
+function getDb(): Db {
+  if (_db) return _db;
+
   const url = process.env.DATABASE_URL;
-  if (!url && !isBuildPhase) {
+  if (!url) {
     throw new Error('DATABASE_URL must be a PostgreSQL connection string');
   }
 
-  // During build, use a dummy connection string that will never connect
-  const client = postgres(
-    url || 'postgresql://build:build@localhost:5432/build',
-    {
-      ssl:
-        process.env.NODE_ENV === 'production' && !isBuildPhase
-          ? 'require'
-          : false,
-      // Prevent actual connections during build
-      ...(isBuildPhase ? { max: 0, idle_timeout: 0, connect_timeout: 0 } : {}),
-    }
-  );
+  const client = postgres(url, {
+    ssl: process.env.NODE_ENV === 'production' ? 'require' : false,
+  });
 
-  return drizzle(client, { schema });
+  _db = drizzle(client, { schema });
+  return _db;
 }
 
-export const db = createDb();
+/**
+ * Export a proxy that lazily initializes the real db client on first use.
+ * This allows module-scope imports without triggering a connection at build time.
+ */
+export const db: Db = new Proxy({} as Db, {
+  get(_, prop: string | symbol) {
+    const real = getDb() as any;
+    const value = real[prop];
+    return typeof value === 'function' ? value.bind(real) : value;
+  },
+});
