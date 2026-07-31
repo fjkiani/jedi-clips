@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { CAPTION_STYLES } from '@/remotion/CaptionStyles';
+import { CAPTION_STYLES } from '@/lib/caption-styles';
 
 interface EditStyleModalProps {
   open: boolean;

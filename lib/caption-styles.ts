@@ -1,7 +1,6 @@
 /**
  * Caption style catalog for the Edit Style modal.
  * Each style has an ID, display name, and description.
- * The visual config is defined in remotion/ShortClip.tsx.
  */
 
 export interface CaptionStyle {
